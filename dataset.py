@@ -1,5 +1,4 @@
 import os
-import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -25,11 +24,11 @@ def load_captions(captions_file):
     """
     pairs = []
     with open(captions_file, "r") as f:
+        next(f)  # skip 1st row lmao
         for line in f:
             line = line.strip()
             if not line:
                 continue
-            # Split only on the first comma captions themselves can contain commas
             filename, caption = line.split(",", 1)
             pairs.append((filename.strip(), caption.strip()))
     return pairs
@@ -42,6 +41,8 @@ class Flickr8kDataset(Dataset):
 
         # GPT-2 tokenizer — we use it to turn caption strings into token id tensors.
         # The model will predict these token ids one by one during training.
+
+        #downloaded from hugging face
         self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 
         # GPT-2 has no padding token by default. Set it to eos_token so the

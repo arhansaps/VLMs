@@ -10,9 +10,9 @@ print(f"Total samples: {len(dataset)}")  # should be ~40,000 as each (caption,im
 
 # Grab the first item and print shapes
 image, input_ids, attention_mask = dataset[0]
-print(f"Image tensor:    {image.shape}")         # [3, 224, 224]
-print(f"Input IDs:       {input_ids.shape}")     # [40]
-print(f"Attention mask:  {attention_mask.shape}") # [40]
+print(f"Image tensor:    {image.shape}")         # [3, 224, 224]  # -> 3d tensor, 224 is the pixel grid
+print(f"Input IDs:       {input_ids.shape}")     # [40] # every image converted to 40 numbers
+print(f"Attention mask:  {attention_mask.shape}") # [40] # padding (0s or 1s), gpt-2 will ignore 0s
 
 # Test the dataloader with a batch
 loader = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=0)
@@ -20,3 +20,6 @@ batch = next(iter(loader))
 print(f"\nBatch image shape:  {batch[0].shape}")  # [8, 3, 224, 224]
 print(f"Batch token shape:  {batch[1].shape}")    # [8, 40]
 print("Dataset OK")
+
+
+#now that take raw image tensor and convert it into a single feature vector dim = 2048
