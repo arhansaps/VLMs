@@ -21,7 +21,7 @@ def train():
 
     # --- Data ---
     dataset = Flickr8kDataset(CAPTIONS_FILE, IMAGES_DIR)
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
 
     # --- Model ---
     model = VLM().to(device)
