@@ -7,16 +7,16 @@ class VisionEncoder(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # Load ResNet-50 pretrained on ImageNet
+        # Load ResNet-50 pretrained model on some 1.1 mil images holy damn
         resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
 
-        # Remove the final classification layer (fc outputs [1000])
+        # Remove the final classification(we dont want classification) layer (fc outputs [1000])
         # Everything up to and including avgpool gives us [2048]
         self.encoder = nn.Sequential(*list(resnet.children())[:-1])
 
         # Freeze all weights — we never want gradients flowing into ResNet
         for param in self.encoder.parameters():
-            param.requires_grad = False
+            param.requires_grad = False #freeze as resnet is already pretrained to have the best weights possible
 
     def forward(self, x):
         # x shape: [B, 3, 224, 224]
