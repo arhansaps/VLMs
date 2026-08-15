@@ -77,6 +77,8 @@ def generate_captions(model, tokenizer, images_dir, filenames, device, max_new_t
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
                 num_beams=1,
+                repetition_penalty=1.3,   # greedy alone loops ("a dog . . . a dog . . .") without this
+                no_repeat_ngram_size=3,   # hard-block any repeated 3-gram, same fix inference.py uses via sampling
                 eos_token_id=tokenizer.eos_token_id,
                 pad_token_id=tokenizer.eos_token_id,
             )

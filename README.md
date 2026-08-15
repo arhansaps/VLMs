@@ -93,24 +93,39 @@ pip install torch torchvision transformers pillow
 Download [Flickr8k](https://www.kaggle.com/datasets/adityajn105/flickr8k) and place images in `data/images/` and captions in `data/captions.txt` (both are gitignored, so this step is required after cloning).
 
 ```bash
-python test_dataset.py               # sanity-check the dataset/dataloader before training
-python train.py                      # trains for 10 epochs, saves vlm_checkpoint.pt after each
-python inference.py --image data/images/<some_image>.jpg
+python train.py                      # trains for 10 epochs on a 90/5/5 train/val/test split
+                                      # saves vlm_checkpoint_1tok.pt (latest) and vlm_checkpoint_1tok_best.pt (best val loss)
+python evaluate.py --checkpoint vlm_checkpoint_1tok_best.pt --split test   # BLEU-1..4 + CIDEr on held-out test images
+python inference.py --image data/images/<some_image>.jpg --checkpoint vlm_checkpoint_1tok_best.pt
 ```
 
-Training and inference both auto-detect CUDA and fall back to CPU.
+Training and inference both auto-detect CUDA and fall back to CPU. See [BUGFIXES.md](BUGFIXES.md) for issues hit along the way and how they were diagnosed/fixed.
+
+## Results
+
+Test-split evaluation (404 held-out images, 1 visual token, greedy decoding with repetition guards) after 10 epochs:
+
+| Metric | Score |
+|---|---|
+| BLEU-1 | 60.97 |
+| BLEU-2 | 39.05 |
+| BLEU-3 | 25.86 |
+| BLEU-4 | 17.32 |
+| CIDEr  | 0.4623 |
+
+For reference, Show-and-Tell/NeuralTalk-era captioning baselines at a similar scale typically land around BLEU-4 ~20-27 and CIDEr ~0.6-0.9 on Flickr8k/30k — these numbers are in that neighborhood, not state-of-the-art but a functioning captioner. (An earlier run scored CIDEr 0.0002 with a non-trivial BLEU-1 — that mismatch was diagnostic of two real bugs, not just a weak model; see [BUGFIXES.md](BUGFIXES.md).)
 
 ## Design notes / why things are the way they are
 
 - **ResNet-50 is frozen entirely.** It's already trained on ~1.1M ImageNet images; the project's job is only to learn the *bridge* between its feature space and GPT-2's, not to re-learn vision.
-- **The image becomes exactly one token.** No patch grid, no cross-attention, no multiple visual tokens — the simplest possible fusion mechanism, which is also why this is comparable to the "Show and Tell" (2014) approach rather than modern patch/cross-attention VLMs.
-- **GPT-2 is fully fine-tuned, not frozen.** Only the projection layer is new; but during training, gradients flow through all of GPT-2's weights too (the optimizer just excludes ResNet).
-- **Sampling decoding, not greedy, at inference.** Greedy/beam decoding on a small fine-tuned GPT-2 tends to degenerate into repetition; `temperature=0.7` + `top_p=0.9` + `repetition_penalty=1.3` was chosen to counter that.
-- **Padding is masked out of the loss** via `ignore_index=-100`, so the model isn't penalized (or rewarded) for predicting anything in pad positions.
+- **The image becomes exactly one token** by default (`SPATIAL_VISUAL_TOKENS = False` in `train.py`). No patch grid, no cross-attention — the simplest possible fusion mechanism, comparable to "Show and Tell" (2014) rather than modern patch/cross-attention VLMs. A `spatial_visual_tokens=True` mode exists on `VisionEncoder`/`VLM` for an ablation using ResNet's 7×7 = 49 spatial features as 49 tokens instead.
+- **GPT-2 is fully fine-tuned, not frozen**, but at a lower learning rate (1e-5) than the from-scratch projection layer (1e-4) — full LR parity between a random-init layer and an already-competent language model risks catastrophic forgetting in GPT-2.
+- **Sampling decoding at inference, greedy + repetition guards at evaluation.** Greedy decoding on a small fine-tuned GPT-2 degenerates into repetition loops without help; `inference.py` uses `temperature=0.7` + `top_p=0.9` + `repetition_penalty=1.3` (sampling), `evaluate.py` uses greedy decoding with `repetition_penalty=1.3` + `no_repeat_ngram_size=3` so evaluation runs stay reproducible.
+- **The model is explicitly supervised to predict EOS.** Padding beyond the caption is masked out of the loss via `ignore_index=-100`, but the *first* padding position (which already holds the EOS token, since `pad_token == eos_token`) is deliberately left unmasked — otherwise the model never learns when a caption should end (see [BUGFIXES.md](BUGFIXES.md)).
 
 ## What this is not
 
-Not a state-of-the-art model — BLEU scores will be modest and captions will sometimes be wrong. The goal is understanding the mechanism of visual conditioning in a language model, not beating benchmarks.
+Not a state-of-the-art model — captions will sometimes be wrong, and this isn't chasing benchmark leaderboards. The goal is understanding the mechanism of visual conditioning in a language model.
 
 ## References
 

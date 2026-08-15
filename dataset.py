@@ -84,4 +84,15 @@ class Flickr8kDataset(Dataset):
         input_ids      = encoded["input_ids"].squeeze(0)
         attention_mask = encoded["attention_mask"].squeeze(0)
 
+        # The tokenizer marks everything after the real caption as padding
+        # (attention_mask=0), and train.py masks all attention_mask=0 positions
+        # out of the loss. Left as-is, the model is NEVER supervised to predict
+        # EOS, so at inference it never learns to stop and rambles past the
+        # caption's natural end. Since pad_token == eos_token, the first padding
+        # slot already holds the EOS token id — just mark that one slot as real
+        # (attention_mask=1) so the model is trained to predict "stop here".
+        seq_len = int(attention_mask.sum().item())
+        if seq_len < self.max_caption_len:
+            attention_mask[seq_len] = 1
+
         return image_tensor, input_ids, attention_mask
