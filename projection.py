@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 """Projection Layer : take the 2048 dim vector as input and convert it into a 768 dim vector
-                        for the llm to work with of course."
+                        for the llm to work with."
 """
 
 class ProjectionLayer(nn.Module):

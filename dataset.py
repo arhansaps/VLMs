@@ -35,9 +35,15 @@ def load_captions(captions_file):
 
 
 class Flickr8kDataset(Dataset):
-    def __init__(self, captions_file, images_dir, max_caption_len=40):
+    def __init__(self, captions_file, images_dir, max_caption_len=40, split_filenames=None):
         self.images_dir = images_dir
-        self.pairs = load_captions(captions_file)
+        pairs = load_captions(captions_file)
+
+        if split_filenames is not None:
+            allowed = set(split_filenames)
+            pairs = [(filename, caption) for filename, caption in pairs if filename in allowed]
+
+        self.pairs = pairs
 
         # GPT-2 tokenizer — we use it to turn caption strings into token id tensors.
         # The model will predict these token ids one by one during training.

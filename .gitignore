@@ -1,2 +1,2 @@
 /data
-vlm_checkpoint.pt
+vlm_checkpoint*.pt
