@@ -103,17 +103,19 @@ Training and inference both auto-detect CUDA and fall back to CPU. See [BUGFIXES
 
 ## Results
 
-Test-split evaluation (404 held-out images, 1 visual token, greedy decoding with repetition guards) after 10 epochs:
+Test-split evaluation (404 held-out images, greedy decoding with repetition guards) after 10 epochs, comparing the default 1-token visual encoding against the 49-token spatial ablation (`SPATIAL_VISUAL_TOKENS = True`, ResNet's 7×7 feature grid used as 49 tokens instead of one pooled vector):
 
-| Metric | Score |
-|---|---|
-| BLEU-1 | 60.97 |
-| BLEU-2 | 39.05 |
-| BLEU-3 | 25.86 |
-| BLEU-4 | 17.32 |
-| CIDEr  | 0.4623 |
+| Metric | 1 token (baseline) | 49 tokens (spatial) | Δ |
+|---|---|---|---|
+| BLEU-1 | 60.97 | 61.88 | +0.91 |
+| BLEU-2 | 39.05 | 39.97 | +0.92 |
+| BLEU-3 | 25.86 | 26.20 | +0.34 |
+| BLEU-4 | 17.32 | 17.41 | +0.09 |
+| CIDEr  | 0.4623 | 0.4769 | +0.0146 |
 
-For reference, Show-and-Tell/NeuralTalk-era captioning baselines at a similar scale typically land around BLEU-4 ~20-27 and CIDEr ~0.6-0.9 on Flickr8k/30k — these numbers are in that neighborhood, not state-of-the-art but a functioning captioner. (An earlier run scored CIDEr 0.0002 with a non-trivial BLEU-1 — that mismatch was diagnostic of two real bugs, not just a weak model; see [BUGFIXES.md](BUGFIXES.md).)
+**Finding:** the 49-token spatial encoding wins on every metric, but the margin shrinks as n-gram order increases — BLEU-4 is nearly a wash. Retaining ResNet's spatial grid instead of pooling it into a single vector gives GPT-2 more to condition on for early-word/content overlap, but doesn't meaningfully improve longer-range phrasing; with this dataset size and a single frozen backbone, one visual token is already capturing most of what matters for captioning.
+
+For reference, Show-and-Tell/NeuralTalk-era captioning baselines at a similar scale typically land around BLEU-4 ~20-27 and CIDEr ~0.6-0.9 on Flickr8k/30k — both runs above are in that neighborhood, not state-of-the-art but a functioning captioner. (An earlier run scored CIDEr 0.0002 with a non-trivial BLEU-1 — that mismatch was diagnostic of two real bugs, not just a weak model; see [BUGFIXES.md](BUGFIXES.md).)
 
 ## Design notes / why things are the way they are
 

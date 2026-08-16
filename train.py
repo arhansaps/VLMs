@@ -18,7 +18,7 @@ PROJECTION_LR = 1e-4
 GPT2_LR       = 1e-5
 WARMUP_STEPS  = 200
 
-SPATIAL_VISUAL_TOKENS = False  # flip to True for the 49-token ablation run
+SPATIAL_VISUAL_TOKENS = True  # flip to True for the 49-token ablation run
 
 _SUFFIX = "49tok" if SPATIAL_VISUAL_TOKENS else "1tok"
 SAVE_PATH      = f"vlm_checkpoint_{_SUFFIX}.pt"       # latest, every epoch
@@ -27,6 +27,26 @@ BEST_SAVE_PATH = f"vlm_checkpoint_{_SUFFIX}_best.pt"   # only overwritten on val
 
 def is_new_best(val_loss, best_so_far):
     return best_so_far is None or val_loss < best_so_far
+
+
+def compute_loss(logits, input_ids, attention_mask, criterion):
+    # logits: [B, num_visual_tokens + seq_len, vocab_size]
+    # input_ids/attention_mask: [B, seq_len]
+    #
+    # Position (num_visual_tokens - 1) is the last visual token — its output
+    # predicts input_ids[0]. Position (num_visual_tokens - 1 + k) predicts
+    # input_ids[k]. This must be derived from num_visual_tokens (not assumed
+    # to be 1) or the spatial (49-token) ablation misaligns logits vs labels.
+    num_visual_tokens = logits.size(1) - input_ids.size(1)
+    shift_logits = logits[:, num_visual_tokens - 1 : -1, :]
+
+    labels = input_ids.clone()
+    labels[attention_mask == 0] = -100
+
+    return criterion(
+        shift_logits.reshape(-1, shift_logits.size(-1)),
+        labels.reshape(-1),
+    )
 
 
 def evaluate_val_loss(model, dataloader, criterion, device):
@@ -39,15 +59,7 @@ def evaluate_val_loss(model, dataloader, criterion, device):
             attention_mask = attention_mask.to(device)
 
             logits = model(images, input_ids, attention_mask)
-            shift_logits = logits[:, :-1, :]
-
-            labels = input_ids.clone()
-            labels[attention_mask == 0] = -100
-
-            loss = criterion(
-                shift_logits.reshape(-1, shift_logits.size(-1)),
-                labels.reshape(-1),
-            )
+            loss = compute_loss(logits, input_ids, attention_mask, criterion)
             total_loss += loss.item()
     model.train()
     return total_loss / len(dataloader)
@@ -108,21 +120,7 @@ def train():
 
             # logits: [B, seq_len+N, vocab_size]  (N visual tokens)
             logits = model(images, input_ids, attention_mask)
-
-            # Shift logits: visual-token position(s) predict input_ids[:, 0],
-            # position 1 predicts input_ids[:, 1], ..., drop the last logit as it has nothing to predict.
-            shift_logits = logits[:, :-1, :]
-
-            # Labels are the raw caption token ids.
-            # Mask padding positions so they don't contribute to loss.
-            labels = input_ids.clone()
-            labels[attention_mask == 0] = -100
-
-            # CrossEntropyLoss expects [N, vocab] and [N], so flatten batch+seq dims
-            loss = criterion(
-                shift_logits.reshape(-1, shift_logits.size(-1)),
-                labels.reshape(-1),
-            )
+            loss = compute_loss(logits, input_ids, attention_mask, criterion)
 
             optimizer.zero_grad()
             loss.backward()
